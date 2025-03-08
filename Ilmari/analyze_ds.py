@@ -56,6 +56,19 @@ def show_clips(dataset, num_clips=3):
     plt.show()
     return animations
 
+def show_clip_length_distribution(dataset):
+    """
+    Plots the distribution of clip lengths in the dataset.
+    
+    Args:
+        dataset (ImigueDS): The dataset to analyze
+    """
+    clip_lengths = dataset.get_clip_length_distribution()
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(x=clip_lengths))
+    fig.update_layout(title="Clip length distribution", xaxis_title="Clip length", yaxis_title="Count")
+    fig.show()
+    
 # Example usage
 if __name__ == "__main__":
     # Resize, normalize, and convert to grayscale
@@ -68,3 +81,4 @@ if __name__ == "__main__":
     dataset = ImigueDS(image_directory="./imigue", frame_count=10, transform=transform)
     plot_class_distribution(dataset)
     show_clips(dataset)
+    show_clip_length_distribution(dataset)

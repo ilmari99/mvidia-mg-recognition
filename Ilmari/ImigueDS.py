@@ -65,6 +65,18 @@ class ImigueDS(Dataset):
             distribution[class_label] += 1
         return dict(distribution)
     
+    def get_clip_length_distribution(self):
+        """
+        Returns the distribution of clip lengths in the dataset without loading videos.
+        
+        Returns:
+            list: A list of clip lengths
+        """
+        clip_lengths = []
+        for key in self.video_keys:
+            clip_lengths.append(len(self.videos[key]))
+        return clip_lengths
+    
     def __len__(self):
         return len(self.video_keys)
     
