@@ -15,9 +15,10 @@ class VideoClassifier(nn.Module):
     def __init__(self, num_classes=32):
         super(VideoClassifier, self).__init__()
         # Load a pre-trained 3D ResNet-18 model
-        self.backbone = models.r3d_18(pretrained=True)
+        self.backbone = models.r3d_18(weights=models.R3D_18_Weights)
         # Replace the final fully connected layer with one that has num_classes outputs.
         self.backbone.fc = nn.Linear(self.backbone.fc.in_features, num_classes)
+        self.softmax = nn.Softmax(dim=1)
 
         #for param in self.backbone.parameters():
         #    param.requires_grad = False
@@ -28,7 +29,8 @@ class VideoClassifier(nn.Module):
         # The dataset returns input in the shape [batch, frames, channels, height, width].
         # Pre-trained models expect [batch, channels, frames, height, width], so we permute.
         x = x.permute(0, 2, 1, 3, 4)
-        return self.backbone(x)
+        x = self.softmax(self.backbone(x))
+        return x
 
 if __name__ == "__main__":
     torch.manual_seed(42)
