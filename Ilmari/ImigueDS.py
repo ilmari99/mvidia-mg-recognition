@@ -9,14 +9,14 @@ from PIL import Image
 
 
 class ImigueDS(Dataset):
-    def __init__(self, root_dir, transform=None, frame_count=10):
+    def __init__(self, image_directory, transform=None, frame_count=10):
         """
         Args:
             root_dir (string): Directory with all the images.
             transform (callable, optional): Optional transform to be applied on a sample.
             frame_count (int): Fixed number of frames per video.
         """
-        self.root_dir = root_dir
+        self.image_directory = image_directory
         self.transform = transform or transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -24,7 +24,8 @@ class ImigueDS(Dataset):
         self.frame_count = frame_count
         
         # Get all image paths
-        self.image_paths = glob.glob(os.path.join(root_dir, "imigue/training/*/*.jpg"))
+        path = os.path.join(image_directory, "*", "*.jpg")
+        self.image_paths = glob.glob(path)
         
         # Group images by video
         self.videos = defaultdict(list)
@@ -98,5 +99,6 @@ class ImigueDS(Dataset):
         
         # Class labels are 1-indexed in the folder structure but PyTorch expects 0-indexed
         class_label = class_num - 1
+        assert class_label >= 0 and class_label <= 31, f"Invalid class label: {class_label}"
         
         return video_tensor, class_label
