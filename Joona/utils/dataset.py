@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms import v2
 from PIL import Image
 
-class ImigueDS(Dataset):
+class ImigueVideoDS(Dataset):
     def __init__(self, image_directory, transform=None, frame_count=10):
         """
         Args: 
@@ -83,3 +83,77 @@ class ImigueDS(Dataset):
         assert class_label >= 0 and class_label <= 31, f"Invalid class label: {class_label}"
         
         return video_tensor, class_label
+
+
+class ImigueImageDS(Dataset):
+    def __init__(self, image_directory, transform=None, frame_count=10):
+        """
+        Args: 
+            data_dir
+            transformations
+            maximum frame count
+        """
+        self.image_directory = Path(image_directory)
+        self.transform = transform or v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        self.frame_count = frame_count
+
+        # Find all frames
+        self.img_paths = np.array([f for f in self.image_directory.glob("**/*.jpg")])
+
+        # Group frames per clip
+        self.videos = defaultdict(list)
+        for path in self.img_paths:    
+            parts = path.name.split(".")
+            class_num = int(path.parent.name) - 1
+            clip_num = parts[0]
+            frame_num = parts[1]
+            
+            # Use clas and clip number as key
+            key = (class_num, clip_num)
+            self.videos[key].append((frame_num, path))
+            
+        # Sort the frames
+        self.images = []
+        self.clips = []  # Store clip ID for each image
+        self.labels = []  # Store labels for stratified split
+        self.clip_to_class = {}  # Map clip ID to class
+        
+        clip_id = 0
+        for key, frames in self.videos.items():
+            class_num = key[0]
+            self.clip_to_class[clip_id] = class_num
+            self.labels.append(class_num)  # Add label for the clip
+            
+            for _, path in sorted(frames, key=lambda x: int(x[0])):
+                self.images.append((path, class_num, clip_id))
+            
+            clip_id += 1
+                
+    def __len__(self):
+        return len(self.images)
+    
+    def get_clip_indices(self):
+        """
+        Returns a mapping of clip IDs to image indices
+        This is used to ensure all frames from the same clip stay together
+        """
+        clip_to_indices = defaultdict(list)
+        for i, (_, _, clip_id) in enumerate(self.images):
+            clip_to_indices[clip_id].append(i)
+        return clip_to_indices
+
+    def __getitem__(self, idx):
+        image_path, class_label, _ = self.images[idx]
+        
+        # Load and transform image
+        image = Image.open(image_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        
+        assert class_label >= 0 and class_label <= 31, f"Invalid class label: {class_label}"
+        return image, class_label
+    
