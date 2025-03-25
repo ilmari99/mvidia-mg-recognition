@@ -11,11 +11,11 @@ class FineTuner(LightningModule):
     """
     PyTorch Lightning class for training
     """
-    def __init__(self, model, num_classes, lr=1e-3):
+    def __init__(self, model, num_features, num_classes, lr=1e-3):
         super(FineTuner, self).__init__()
         self.model = model
         self.classifier = nn.Sequential(
-            nn.Linear(768, 512),
+            nn.Linear(num_features, 512),
             nn.LayerNorm(512),
             nn.GELU(),
             nn.Dropout(0.2),
@@ -33,12 +33,11 @@ class FineTuner(LightningModule):
     
     def forward(self, x):
         # For timm models
+        if self.model.__class__.__name__ == "SwinTransformer3d":
+            x = x.permute(0, 2, 1, 3, 4)
         output = self.model(x)
-        if "logits" in dict(output):
-            output = output["logits"]
         pred = self.classifier(output)
         return pred
-    
     
     def training_step(self, batch, batch_idx):
         img, label = batch

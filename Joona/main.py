@@ -15,7 +15,7 @@ def parse_arguments():
     parser.add_argument('--data_path', type=str, default="./data/training", help='Path to dataset')
     parser.add_argument('--num_classes', type=int, default=32, help='Number of classes in dataset')
     parser.add_argument('--num_frames', type=int, default=5, help='Number of frames to take')
-    parser.add_argument('--model', type=str, default="resnet18", help='Model from timm')
+    parser.add_argument('--model', type=str, default="swin", help='Model from timm')
     
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--epochs', type=int, default=30, help='Number of epochs')
@@ -64,9 +64,8 @@ def main(args):
     )
     
     # Load the model
-    model = 
-    
-    fine_tuner = FineTuner(model, args.num_classes, lr = 1e-4)
+    model, num_features = create_model(args)
+    fine_tuner = FineTuner(model, num_features, args.num_classes, lr = 1e-4)
     
     trainer.fit(fine_tuner, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     torch.cuda.empty_cache()

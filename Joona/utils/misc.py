@@ -6,12 +6,12 @@ import timm
 from transformers import AutoImageProcessor, VivitConfig, VivitForVideoClassification
 import torch.nn as nn
 from sklearn.metrics import confusion_matrix
-import seaborn as sn
+import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 from torchvision.models.video import swin3d_b
 
-def stratified_split(num_frames, dataset):
+def stratified_split(dataset, num_frames = None):
     """
     Splits dataset into train and validation dataset using stratified splitting.
     Small (<2 samples) are used in training set
@@ -64,51 +64,35 @@ def stratified_split(num_frames, dataset):
 
 
 def create_model(args):
-    if args.model == "google/vivit-b-16x2-kinetics400":
-        
-        config = VivitConfig.from_pretrained(args.model)
-        config.num_frames = args.num_frames
-
-        # First create model with new config (uninitialized)
-        model = VivitForVideoClassification(config)
-
-        # Now load pre-trained weights, allowing for mismatched sizes
-        pretrained_dict = VivitForVideoClassification.from_pretrained(
-            args.model, 
-            ignore_mismatched_sizes=True
-        ).state_dict()
-
-        # Filter out position embeddings which depend on sequence length
-        # but keep other weights that can be reused
-        model_dict = model.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if 'position_embeddings' not in k and k in model_dict and v.shape == model_dict[k].shape}
-
-        # Update model with filtered pre-trained weights
-        model_dict.update(pretrained_dict)
-        model.load_state_dict(model_dict)
-
-        # Replace classifier head
-        # model.classifier = nn.Linear(model.config.hidden_size, args.num_classes)
-        model.classifier = nn.Identity()
-        
+    if args.model == "swin":
+        model = swin3d_b("Swin3D_B_Weights.KINETICS400_IMAGENET22K_V1")
+        num_features = model.head.in_features
+        model.head = nn.Identity()
     else:
         # Load the model using timm
         model = timm.create_model(args.model, pretrained=True, num_classes=0, drop_path_rate=0.2)
         
+        num_features = model.num_features
         # Create transform using timm utilities
-        # transforms = create_transform(**resolve_data_config(model.pretrained_cfg, model=model))
-        transforms = 0
+ 
     
-    return model
+    return model, num_features
 
 
 def createConfusionMatrix(preds, labels):
     # constant for classes
-    classes = [str(i) for i in range(max(labels))]
-    
+    unique_classes = np.unique(np.concatenate((labels, preds)))
+
+    classes = [str(i) for i in unique_classes] 
+    # print("Labels:", labels)
+    # print("Predictions:", preds)
     # Build confusion matrix
     cf_matrix = confusion_matrix(labels, preds)
-    df_cm = pd.DataFrame(cf_matrix, index=[i for i in classes],
-                         columns=[i for i in classes])
-    plt.figure(figsize=(12, 7))    
-    return sn.heatmap(df_cm, annot=True, cmap="Blues").get_figure()
+    
+    cf_matrix = cf_matrix.astype('float') / np.sum(cf_matrix, axis=1)[:, None]  # Row-wise normalization
+    cf_matrix = np.nan_to_num(cf_matrix * 100)
+    # Ensure correct DataFrame indexing
+    df_cm = pd.DataFrame(cf_matrix, index=classes, columns=classes)
+
+    plt.figure(figsize=(14, 10))
+    return sns.heatmap(df_cm, annot=True, fmt=".1f", cmap="Blues").get_figure()
