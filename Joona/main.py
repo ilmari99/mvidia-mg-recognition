@@ -4,11 +4,10 @@ from lightning.pytorch import Trainer
 from torch.utils.data import DataLoader
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-from utils.dataset import ImigueVideoDS, ImigueImageDS
+from utils.dataset import ImigueVideoDS
 from utils.misc import stratified_split, create_model
-from engine import FineTuner
+from engine import FineTuner, LateFusion
 from torchvision.transforms import v2
-from torchvision.datasets import ImageFolder
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -21,12 +20,14 @@ def parse_arguments():
     parser.add_argument('--epochs', type=int, default=30, help='Number of epochs')
     parser.add_argument('--gpu_id', type=int, default=1, help='GPU ID')
     parser.add_argument('--accum_grad_steps', type=int, default=1, help='Gradient accumulation steps')
+    parser.add_argument('--late_fusion', action="store_true", help="Use late fusion")
     return parser.parse_args()
 
     
 def main(args):
     transform = v2.Compose([
         v2.CenterCrop((224,224)),
+        v2.RandomHorizontalFlip(),
         v2.ToImage(), 
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -34,8 +35,9 @@ def main(args):
     
     # Load dataset
     dataset = ImigueVideoDS(args.data_path, transform=transform, frame_count=args.num_frames)
-        
-    train_dataset, valid_dataset = stratified_split(args, dataset)
+    
+    train_dataset, valid_dataset = stratified_split(dataset, args.num_frames)
+ 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
     
@@ -65,7 +67,10 @@ def main(args):
     
     # Load the model
     model, num_features = create_model(args)
-    fine_tuner = FineTuner(model, num_features, args.num_classes, lr = 1e-4)
+    if args.late_fusion:
+        fine_tuner = LateFusion(model, frame_count=args.num_frames, num_features=num_features, num_classes=args.num_classes, lr = 1e-4)
+    else:
+        fine_tuner = FineTuner(model, num_features=num_features, num_classes=args.num_classes, lr = 1e-4, frame_count=args.num_frames, )
     
     trainer.fit(fine_tuner, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     torch.cuda.empty_cache()
