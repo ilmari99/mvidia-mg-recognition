@@ -9,15 +9,22 @@ import random
 
 def plot_class_distribution(dataset):
     """
-    Plots the class distribution of a dataset.
+    Plots the class distribution of a dataset normalized to percents.
     
     Args:
         dataset (ImigueDS): The dataset to analyze
     """
     class_distr = dataset.get_class_distribution()
+    total = sum(class_distr.values())
+    percentages = {cls: (count / total) * 100 for cls, count in class_distr.items()}
+
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=list(class_distr.keys()), y=list(class_distr.values())))
-    fig.update_layout(title="Class distribution", xaxis_title="Class", yaxis_title="Count")
+    fig.add_trace(go.Bar(x=list(percentages.keys()), y=list(percentages.values())))
+    fig.update_layout(
+        title={'text': 'Class distribution (%)', 'font': {'size': 32}},
+        xaxis={'title': {'text': 'Class', 'font': {'size': 28}}, 'tickfont': {'size': 14}},
+        yaxis={'title': {'text': 'Percentage', 'font': {'size': 28}}, 'tickfont': {'size': 14}}
+    )
     fig.show()
     
 def show_clips(dataset, num_clips=3):
@@ -41,7 +48,6 @@ def show_clips(dataset, num_clips=3):
         
         # Create separate figure for each clip
         fig, ax = plt.subplots(figsize=(5, 5))
-        ax.axis('off')
         ax.set_title(f"Class: {label}")
         
         # Create the animation frames
@@ -58,15 +64,22 @@ def show_clips(dataset, num_clips=3):
 
 def show_clip_length_distribution(dataset):
     """
-    Plots the distribution of clip lengths in the dataset.
+    Plots the distribution of clip lengths in the dataset normalized to percents.
     
     Args:
         dataset (ImigueDS): The dataset to analyze
     """
     clip_lengths = dataset.get_clip_length_distribution()
     fig = go.Figure()
-    fig.add_trace(go.Histogram(x=clip_lengths))
-    fig.update_layout(title="Clip length distribution", xaxis_title="Clip length", yaxis_title="Count")
+    fig.add_trace(go.Histogram(x=clip_lengths, histnorm="percent"))
+    fig.update_layout(
+        title={'text': "Clip length distribution", 'font': {'size': 32}},
+        xaxis={
+            'title': {'text': "Clip length", 'font': {'size': 28}},
+            'range': [0, 100]
+        },
+        yaxis={'title': {'text': "Percentage (%)", 'font': {'size': 28}}}
+    )
     fig.show()
     
 # Example usage
@@ -78,7 +91,7 @@ if __name__ == "__main__":
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,))
     ])
-    dataset = ImigueDS(image_directory="./imigue", frame_count=10, transform=transform)
+    dataset = ImigueDS(image_directory="./imigue", frame_count=20, transform=transform)
     plot_class_distribution(dataset)
     show_clips(dataset)
     show_clip_length_distribution(dataset)

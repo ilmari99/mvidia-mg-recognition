@@ -1,6 +1,6 @@
 import os
-os.environ["TORCH_USE_CUDA_DSA"] = "1"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+#os.environ["TORCH_USE_CUDA_DSA"] = "1"
+#os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,32 +10,52 @@ from ImigueDS import ImigueDS
 from torchvision import transforms
 import torchvision.models.video as models
 import random
+from tqdm import tqdm
 
 class VideoClassifier(nn.Module):
-    def __init__(self, num_classes=32):
+    def __init__(self, num_classes=32, freeze_backbone=True):
         super(VideoClassifier, self).__init__()
         # Load a pre-trained 3D ResNet-18 model
         self.backbone = models.r3d_18(weights=models.R3D_18_Weights)
         # Replace the final fully connected layer with one that has num_classes outputs.
         self.backbone.fc = nn.Linear(self.backbone.fc.in_features, num_classes)
-        self.softmax = nn.Softmax(dim=1)
-
-        #for param in self.backbone.parameters():
-        #    param.requires_grad = False
-        #for param in self.backbone.fc.parameters():
-        #    param.requires_grad = True
+        self.freeze_backbone = freeze_backbone
+        
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            for param in self.backbone.fc.parameters():
+                param.requires_grad = True
+        
+        self.backbone.eval()
 
     def forward(self, x):
         # The dataset returns input in the shape [batch, frames, channels, height, width].
         # Pre-trained models expect [batch, channels, frames, height, width], so we permute.
         x = x.permute(0, 2, 1, 3, 4)
-        x = self.softmax(self.backbone(x))
+        x = self.backbone(x)
         return x
+    
+    def eval(self):
+        self.backbone.eval()
+        return self
+    
+    def train(self, mode=True):
+        # If back bone is frozen, only train the final layer
+        self.backbone.eval()
+        if self.freeze_backbone:
+            self.backbone.fc.train()
+        else:
+            self.backbone.train()
+        return self
+        
+            
 
 if __name__ == "__main__":
     torch.manual_seed(42)
     random.seed(42)
 
+    # Found from model page
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((128, 171)),
@@ -43,34 +63,30 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.43216, 0.394666, 0.37645], std=[0.22803, 0.22145, 0.216989]),
     ])
     
-    dataset = ImigueDS(image_directory="./imigue", frame_count=7, transform=transform)
+    dataset = ImigueDS(image_directory="./imigue", frame_count=5, transform=transform)
     dataset_size = len(dataset)
-    train_size = int(0.7 * dataset_size)
-    val_size = int(0.15 * dataset_size)
-    test_size = dataset_size - train_size - val_size
-    train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
+    train_size = int(0.85 * dataset_size)
+    val_size = dataset_size - train_size
+    train_set, val_set = random_split(dataset, [train_size, val_size])
     
-    # Increase batch size to 32
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
-    test_loader = DataLoader(test_set, batch_size=32, shuffle=False)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = VideoClassifier(num_classes=32).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     
-    # Initialize TensorBoard writer
     writer = SummaryWriter(log_dir="./runs")
     
-    num_epochs = 5  # Adjust as needed
+    num_epochs = 20
     global_step = 0
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         correct_train = 0
         total_train = 0
-        for i, batch in enumerate(train_loader):
+        for i, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
             videos, labels = batch
             videos = videos.to(device)
             labels = labels.to(device)

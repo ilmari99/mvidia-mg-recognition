@@ -9,20 +9,24 @@ from torchvision import transforms
 import torchvision.models.video as models
 import random
 from torchvision.transforms import InterpolationMode
+from tqdm import tqdm
 
 class VideoClassifier(nn.Module):
-    def __init__(self, num_classes=32):
+    def __init__(self, num_classes=32, freeze_backbone=True):
         super(VideoClassifier, self).__init__()
         # Load a pre-trained 3D ResNet-18 model
         #self.backbone = models.r3d_18(weights=models.R3D_18_Weights.DEFAULT)
         self.backbone = models.swin3d_t(weights=models.Swin3D_T_Weights.DEFAULT)
         # Replace the final head layer with one that has num_classes outputs.
         self.backbone.head = nn.Linear(self.backbone.head.in_features, num_classes)
-
-        for param in self.backbone.parameters():
-            param.requires_grad = False
-        for param in self.backbone.head.parameters():
-            param.requires_grad = True
+        
+        self.freeze_backbone = freeze_backbone
+        
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            for param in self.backbone.head.parameters():
+                param.requires_grad = True
 
     def forward(self, x):
         # The dataset returns input in the shape [batch, frames, channels, height, width].
@@ -30,6 +34,19 @@ class VideoClassifier(nn.Module):
         x = x.permute(0, 2, 1, 3, 4)
         x = self.backbone(x)
         return x
+    
+    def eval(self):
+        self.backbone.eval()
+        return self
+    
+    def train(self, mode=True):
+        # If back bone is frozen, only train the final layer
+        self.backbone.eval()
+        if self.freeze_backbone:
+            self.backbone.head.train()
+        else:
+            self.backbone.train()
+        return self
 
 if __name__ == "__main__":
     torch.manual_seed(42)
@@ -41,7 +58,7 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     
-    dataset = ImigueDS(image_directory="./imigue", frame_count=6, transform=transform)
+    dataset = ImigueDS(image_directory="./imigue", frame_count=12, transform=transform)
     dataset_size = len(dataset)
     train_size = int(0.85 * dataset_size)
     val_size = dataset_size - train_size
@@ -54,7 +71,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = VideoClassifier(num_classes=32).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
     
     # Initialize TensorBoard writer
     writer = SummaryWriter(log_dir="runs", flush_secs=30)
@@ -71,7 +88,7 @@ if __name__ == "__main__":
         running_loss = 0.0
         correct_train = 0
         total_train = 0
-        for i, batch in enumerate(train_loader):
+        for i, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
             videos, labels = batch
             videos = videos.to(device)
             labels = labels.to(device)
