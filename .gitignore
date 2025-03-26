@@ -1,4 +1,6 @@
 imigue/*
+Joona/data/training/*
+Joona/logs/*
 *tfevents*
 
 # Byte-compiled / optimized / DLL files
