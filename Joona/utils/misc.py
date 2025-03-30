@@ -10,11 +10,12 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 from torchvision.models.video import swin3d_b
+from torchvision.models import swin_b
 
 def stratified_split(dataset, num_frames = None):
     """
     Splits dataset into train and validation dataset using stratified splitting.
-    Small (<2 samples) are used in training set
+    Small classes (<2 clips) are used only in the training set
     """
     
     # Count class occurrences
@@ -65,15 +66,17 @@ def stratified_split(dataset, num_frames = None):
     
     return train_dataset, val_dataset
 
-def create_model(args):
-    if args.model == "swin":
-        model = swin3d_b("Swin3D_B_Weights.KINETICS400_IMAGENET22K_V1")
+def create_backbone_model(args):
+    if args.late_fusion or args.num_frames == 1:
+        # Load image swin
+        model = swin_b(weights='DEFAULT')
         num_features = model.head.in_features
         model.head = nn.Identity()
     else:
-        # Load the model using timm
-        model = timm.create_model(args.model, pretrained=True, num_classes=0, drop_path_rate=0.2)
-        num_features = model.num_features
+        # Load Video swin
+        model = swin3d_b("Swin3D_B_Weights.KINETICS400_IMAGENET22K_V1")
+        num_features = model.head.in_features
+        model.head = nn.Identity()
     
     return model, num_features
 
