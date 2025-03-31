@@ -18,7 +18,7 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
-    parser.add_argument('--gpu_id', type=int, default=1, help='GPU ID')
+    parser.add_argument('--gpu_id', type=int, default=0, help='GPU ID')
     parser.add_argument('--late_fusion', action="store_true", help="Use late fusion")
     parser.add_argument('--checkpoint_path', type=str, default=None, help='Path to checkpoint file')
     return parser.parse_args()
