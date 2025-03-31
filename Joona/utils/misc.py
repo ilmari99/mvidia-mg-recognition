@@ -96,4 +96,5 @@ def createConfusionMatrix(preds, labels):
     plt.figure(figsize=(14, 10))
     plt.xlabel("Predicted Label", fontsize=12)
     plt.ylabel("True Label", fontsize=12)
+    sns.heatmap(df_cm, annot=True, fmt=".1f", cmap="Blues")
     return sns.heatmap(df_cm, annot=True, fmt=".1f", cmap="Blues").get_figure()

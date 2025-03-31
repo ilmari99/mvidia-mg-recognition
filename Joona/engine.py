@@ -86,9 +86,9 @@ class FineTuner(LightningModule):
         acc = self.accuracy(pred, label)
         top5_acc = self.accuracy_topk(pred, label)
         
-        self.log("val_loss", loss, batch_size=img.size(0))
-        self.log("val_acc", acc, on_step=False, on_epoch=True)
-        self.log("val_top5_acc", top5_acc, on_step=False, on_epoch=True)
+        self.log("test_loss", loss, batch_size=img.size(0))
+        self.log("test_acc", acc, on_step=False, on_epoch=True)
+        self.log("test_top5_acc", top5_acc, on_step=False, on_epoch=True)
         
         # As preds is just logits, take max as prediction
         predicted = pred.argmax(dim=1).cpu().detach().numpy()
@@ -99,10 +99,6 @@ class FineTuner(LightningModule):
         return loss
     
     def on_test_epoch_end(self):
-        # Get logger (tensorboard)
-        logger = self.logger.experiment
-        logger.add_figure("Confusion matrix", createConfusionMatrix(self.valid_step_outputs, self.valid_step_labels), self.current_epoch + 1)
-        
         # Reset metrics at the end of validation epoch
         self.accuracy.reset()
         self.accuracy_topk.reset()
